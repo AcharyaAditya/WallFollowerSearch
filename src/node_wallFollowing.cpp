@@ -1,8 +1,11 @@
 #include "../include/node_wallFollowing.h"
+#include "std_msgs/Float32.h"
 #include <math.h>
 #define PI 3.141592
 
-NodeWallFollowing::NodeWallFollowing(ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
+double NodeWallFollowing::myErr = 0;
+
+NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
     wallDistance = wallDist;
     maxSpeed = maxSp;
@@ -10,9 +13,10 @@ NodeWallFollowing::NodeWallFollowing(ros::Publisher pub, double wallDist, double
     P = pr;
     D = di;
     angleCoef = an;
-    e = 0;
     angleMin = 0;
     pubMessage = pub;
+    meroDistancePub = meroDistance;
+    calculatedError = calcErr;
 }
 
 NodeWallFollowing::~NodeWallFollowing() {}
@@ -21,9 +25,16 @@ NodeWallFollowing::~NodeWallFollowing() {}
 void NodeWallFollowing::publishMessage()
 {
     double currentTime;
+
     //preparing message
     geometry_msgs::Twist msg;
-    msg.angular.z = direction * (P * e + D * diffE) + angleCoef * (angleMin - PI * direction / 2);
+
+    //for tests
+    std_msgs::Float32 distancemsg;
+    std_msgs::Float32 errormsg;
+
+    msg.angular.z = direction * (P * myErr + D * diffE) + angleCoef * (angleMin - ((PI * direction) / 2));
+    // msg.linear.x = maxSpeed;
 
     //added for takeoff in simulation
     if (sonarHeight < 0.5)
@@ -31,20 +42,11 @@ void NodeWallFollowing::publishMessage()
         msg.linear.z = 1;
     }
 
-    //Closure check
-    currentTime = ros::Time::now().toSec();
-    if (currentTime > (distChangeTime + 10))
-    {
-        if (((positionX) > (referencePosX - 1) && positionX < (referencePosX + 1)) && ((positionY) > (referencePosY - 1) && positionY < (referencePosY + 1)))
-        {
-        }
-    }
-
     if (distFront < wallDistance)
     {
         msg.linear.x = 0;
     }
-    else if (distFront > wallDistance * 2)
+    else if (distFront < wallDistance * 2)
     {
         msg.linear.x = 0.5 * maxSpeed;
     }
@@ -57,52 +59,57 @@ void NodeWallFollowing::publishMessage()
         msg.linear.x = maxSpeed;
     }
 
+    errormsg.data = myErr;
+    distancemsg.data = angleMin * 180 / PI;
     //publish message
     pubMessage.publish(msg);
+    meroDistancePub.publish(distancemsg);
+    calculatedError.publish(errormsg);
 }
 
 //Subscrber
 void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &msg)
 {
     int size = msg->ranges.size();
-    // double minDistance = msg->ranges[0];
+
     //variables with index of highest and lowest values in array
-    int minIndex = size * (direction + 1) / 4;
-    int maxIndex = size * (direction + 3) / 4;
-    // int minIndex = 0;
-    // int maxIndex = size;
+    // int minIndex = (size * (direction + 1) / 4);
+    // int maxIndex = size * (direction + 3) / 4;
+    int minIndex = 440;
+    int maxIndex = 640;
+    int closestIndex = -1;
+    double minVal = 999;
 
     for (int i = minIndex; i < maxIndex; i++)
     {
-        if ((msg->ranges[i] < msg->ranges[minIndex]) && (msg->ranges[i] > 0.01))
+        if ((msg->ranges[i] <= minVal) && (msg->ranges[i] >= msg->range_min) && (msg->ranges[i] <= msg->range_max))
         {
-            minIndex = i;
+            minVal = msg->ranges[i];
+            closestIndex = i;
         }
-        // if(msg->ranges[i] < minDistance){
-        //     minIndex = i;
-        //     minDistance = msg->ranges[i];
-        // }
     }
+    // ROS_INFO_STREAM("Value800 ---"<<msg->ranges[800]);
+    ROS_INFO_STREAM("Min ---"<<closestIndex);
+    ROS_INFO_STREAM("----------------------------------");
 
     //calculation of angles from indexes and storing data to class variables
-    angleMin = (minIndex - size / 2) * msg->angle_increment;
-    double distMin;
-    distMin = msg->ranges[minIndex];
-    distFront = msg->ranges[size / 2];
-    diffE = (distMin - wallDistance);
+    angleMin = (closestIndex - (size / 2)) * msg->angle_increment;
+    float distMin = 0;
+    distMin = msg->ranges[closestIndex];
+    distFront = msg->ranges[(size / 2)];
 
+    diffE = (distMin - wallDistance) - myErr;
+    myErr = distMin - wallDistance;
     publishMessage();
 }
 
 void NodeWallFollowing::sonarHeightCallback(const sensor_msgs::Range::ConstPtr &sonarMsg)
 {
-
     sonarHeight = sonarMsg->range;
 }
 
 void NodeWallFollowing::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg)
 {
-
     positionX = poseMsg->pose.position.x;
     positionY = poseMsg->pose.position.y;
 }

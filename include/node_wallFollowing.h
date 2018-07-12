@@ -3,7 +3,7 @@
 #include "geometry_msgs/Twist.h"
 #include "sensor_msgs/Range.h"
 #include "geometry_msgs/PoseStamped.h"
-
+#include "float.h"
 class NodeWallFollowing
 {
   public:
@@ -16,7 +16,7 @@ class NodeWallFollowing
    * di    D constant for PD controller.
    * an    Angle coefficient for P controller.
    */
-    NodeWallFollowing(ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an);
+    NodeWallFollowing(ros::Publisher dist ,ros::Publisher calcErr ,ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an);
     ~NodeWallFollowing();
 
     /* This method is generating commands for robot by
@@ -38,22 +38,28 @@ class NodeWallFollowing
 
     //variables
     double wallDistance; // r_wall             desired distance to wall 
-    double e;            // e_tn               difference between desired distance from the wall and actual distance
+    // double e=0;            // e_tn               difference between desired distance from the wall and actual distance
+    static double myErr;
     double diffE;        // e_tn - e_tn-1      Derative element for PD controller.
+    double intE;         // Integral component
     double maxSpeed;     // Maximum speed of the robot.
     double P;            // k_P                 constant for PD controller.
     double D;            // k_D                 constant for the PD controller
     double angleCoef;    // k_P2                coefficient for P controller
     int direction;       // d                   1 for wall on the right and -1 for wall on the left
-    double angleMin;     // chi                 Angle, measured at the shortest distance
-    double distFront;    // Distance measured at the front of the robot
+    float angleMin;     // chi                 Angle, measured at the shortest distance
+    float distFront;    // Distance measured at the front of the robot
     ros::Publisher pubMessage;
+    ros::Publisher meroDistancePub;
+    ros::Publisher calculatedError;
 
     double sonarHeight; //sonar height from gazebo
     double positionX;   //pose x
     double positionY;   //pose y
-    double referencePosX=0; //for closure
-    double referencePosY=0; //for closure
-    int closureCounter=0;   //for closure
-    double distChangeTime=0;  //for closure
+    static double referencePosX; //for closure
+    static double referencePosY; //for closure
+    static int closureCounter;   //for closure
+    static double distChangeTime;  //for closure
+    double currentWallDist = 0;
+    int updateRefPosCount = 0;
 };
