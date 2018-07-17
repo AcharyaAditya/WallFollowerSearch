@@ -5,8 +5,8 @@
 #define PUBLISHER_BUFFER_SIZE 1000
 #define WALL_DISTANCE 1
 #define MAX_SPEED 0.3
-#define P 1
-#define D 0.4
+#define P 2
+#define D 1
 #define ANGLE_COEF 0.3
 #define DIRECTION 1
 

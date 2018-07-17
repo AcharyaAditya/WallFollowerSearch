@@ -4,6 +4,9 @@
 #define PI 3.141592
 
 double NodeWallFollowing::myErr = 0;
+double NodeWallFollowing::dist180 = 0;
+bool NodeWallFollowing::largeChange = false;
+double NodeWallFollowing::previousTime = 0;
 
 NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
@@ -24,7 +27,7 @@ NodeWallFollowing::~NodeWallFollowing() {}
 //Publisher
 void NodeWallFollowing::publishMessage()
 {
-    double currentTime;
+    double currentTime = ros::Time::now().toSec();
 
     //preparing message
     geometry_msgs::Twist msg;
@@ -33,13 +36,27 @@ void NodeWallFollowing::publishMessage()
     std_msgs::Float32 distancemsg;
     std_msgs::Float32 errormsg;
 
-    msg.angular.z = direction * (P * myErr + D * diffE) + angleCoef * (angleMin - ((PI * direction) / 2));
-    // msg.linear.x = maxSpeed;
-
     //added for takeoff in simulation
     if (sonarHeight < 0.5)
     {
         msg.linear.z = 1;
+    }
+
+    if (largeChange)
+    {
+        if (currentTime - previousTime > 3)
+        {
+            ROS_INFO_STREAM("---------------------3 sec bhayo---------------------------");
+            msg.angular.z = 1.75; //+ve for anti clockwise
+        }
+        msg.linear.x = 0.5;
+    }
+    else
+    {
+        msg.angular.z = direction * (P * myErr + D * diffE) + angleCoef * (angleMin - ((PI * direction) / 2));
+        // msg.linear.x = maxSpeed;
+        errormsg.data = dist180;
+        distancemsg.data = angleMin * 180 / PI;
     }
 
     if (distFront < wallDistance)
@@ -59,8 +76,6 @@ void NodeWallFollowing::publishMessage()
         msg.linear.x = maxSpeed;
     }
 
-    errormsg.data = myErr;
-    distancemsg.data = angleMin * 180 / PI;
     //publish message
     pubMessage.publish(msg);
     meroDistancePub.publish(distancemsg);
@@ -75,22 +90,39 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     //variables with index of highest and lowest values in array
     // int minIndex = (size * (direction + 1) / 4);
     // int maxIndex = size * (direction + 3) / 4;
-    int minIndex = 440;
-    int maxIndex = 640;
+    int minIndex = 360;
+    int maxIndex = 540;
     int closestIndex = -1;
     double minVal = 999;
-
+    overDistCount = 0;
     for (int i = minIndex; i < maxIndex; i++)
     {
+        if (msg->ranges[i] > wallDistance + 1) /////YESMA MILAUNA PARCHA SURE change kasari milaune?
+        {
+            overDistCount++;
+        }
         if ((msg->ranges[i] <= minVal) && (msg->ranges[i] >= msg->range_min) && (msg->ranges[i] <= msg->range_max))
         {
             minVal = msg->ranges[i];
             closestIndex = i;
         }
     }
+
+    if (overDistCount > 150)
+    {
+        largeChange = true;
+        ROS_INFO_STREAM("---------------------Left ma bhwang cha---------------------------");
+        // double previousTime = ros::Time::now().toSec();
+    }
+    else
+    {
+        double previousTime = ros::Time::now().toSec();
+        largeChange = false;
+    }
+
     // ROS_INFO_STREAM("Value800 ---"<<msg->ranges[800]);
-    ROS_INFO_STREAM("Min ---"<<closestIndex);
-    ROS_INFO_STREAM("----------------------------------");
+    ROS_INFO_STREAM("Min ---" << msg->ranges[closestIndex]);
+    // ROS_INFO_STREAM("----------------------------------");
 
     //calculation of angles from indexes and storing data to class variables
     angleMin = (closestIndex - (size / 2)) * msg->angle_increment;
@@ -100,6 +132,7 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
 
     diffE = (distMin - wallDistance) - myErr;
     myErr = distMin - wallDistance;
+    dist180 = msg->ranges[180];
     publishMessage();
 }
 
