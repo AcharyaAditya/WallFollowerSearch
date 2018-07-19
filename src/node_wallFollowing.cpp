@@ -27,7 +27,8 @@ NodeWallFollowing::~NodeWallFollowing() {}
 //Publisher
 void NodeWallFollowing::publishMessage()
 {
-    double currentTime = ros::Time::now().toSec();
+    // double previousTime = ros::Time::now().toSec();
+    // double currentTime = 0;
 
     //preparing message
     geometry_msgs::Twist msg;
@@ -37,47 +38,68 @@ void NodeWallFollowing::publishMessage()
     std_msgs::Float32 errormsg;
 
     //added for takeoff in simulation
-    if (sonarHeight < 0.5)
-    {
-        msg.linear.z = 1;
-    }
+    // if (sonarHeight < 0.5)
+    // {
+    //     msg.linear.z = 1;
+    // }
 
-    if (largeChange)
-    {
-        if (currentTime - previousTime > 3)
+    // if (largeChange)
+    // {
+    //     while (currentTime < (previousTime + 2.0))
+    //     {
+    //         if (sonarHeight < 0.5)
+    //         {
+    //             msg.linear.z = 1;
+    //         }
+    //         ROS_INFO_STREAM("---------------------4 sec sidha janchu---------------------------");
+    //         msg.linear.x = 0.4;
+
+    //         pubMessage.publish(msg);
+    //         currentTime = ros::Time::now().toSec();
+    //     }
+    //     while (currentTime < (previousTime + 4.0))
+    //     {
+    //         if (sonarHeight < 0.5)
+    //         {
+    //             msg.linear.z = 1;
+    //         }
+    //         ROS_INFO_STREAM("---------------------gumdai chu aba---------------------------");
+    //         msg.angular.z = 1; //+ve for anti clockwise
+    //         pubMessage.publish(msg);
+    //         currentTime = ros::Time::now().toSec();
+    //     }
+    // }
+    // else
+    // {
+        if (sonarHeight < 0.5)
         {
-            ROS_INFO_STREAM("---------------------3 sec bhayo---------------------------");
-            msg.angular.z = 1.75; //+ve for anti clockwise
+            msg.linear.z = 1;
         }
-        msg.linear.x = 0.5;
-    }
-    else
-    {
         msg.angular.z = direction * (P * myErr + D * diffE) + angleCoef * (angleMin - ((PI * direction) / 2));
         // msg.linear.x = maxSpeed;
         errormsg.data = dist180;
         distancemsg.data = angleMin * 180 / PI;
-    }
 
-    if (distFront < wallDistance)
-    {
-        msg.linear.x = 0;
-    }
-    else if (distFront < wallDistance * 2)
-    {
-        msg.linear.x = 0.5 * maxSpeed;
-    }
-    else if (fabs(angleMin) > 1.75)
-    {
-        msg.linear.x = 0.4 * maxSpeed;
-    }
-    else
-    {
-        msg.linear.x = maxSpeed;
-    }
+        if (distFront < wallDistance)
+        {
+            msg.linear.x = 0;
+        }
+        else if (distFront < wallDistance * 2)
+        {
+            msg.linear.x = 0.5 * maxSpeed;
+        }
+        else if (fabs(angleMin) > 1.75)
+        {
+            msg.linear.x = 0.4 * maxSpeed;
+        }
+        else
+        {
+            msg.linear.x = maxSpeed;
+        }
+        pubMessage.publish(msg);
+    // }
 
     //publish message
-    pubMessage.publish(msg);
     meroDistancePub.publish(distancemsg);
     calculatedError.publish(errormsg);
 }
@@ -85,6 +107,12 @@ void NodeWallFollowing::publishMessage()
 //Subscrber
 void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &msg)
 {
+
+    if(largeChange){
+        wallDistance = 4;
+    }else{
+        wallDistance =1;
+    }
     int size = msg->ranges.size();
 
     //variables with index of highest and lowest values in array
@@ -97,7 +125,7 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     overDistCount = 0;
     for (int i = minIndex; i < maxIndex; i++)
     {
-        if (msg->ranges[i] > wallDistance + 1) /////YESMA MILAUNA PARCHA SURE change kasari milaune?
+        if (msg->ranges[i] > wallDistance + 2) /////YESMA MILAUNA PARCHA SURE change kasari milaune?
         {
             overDistCount++;
         }
@@ -108,7 +136,7 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
         }
     }
 
-    if (overDistCount > 150)
+    if (overDistCount > 179)
     {
         largeChange = true;
         ROS_INFO_STREAM("---------------------Left ma bhwang cha---------------------------");
@@ -116,7 +144,8 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     }
     else
     {
-        double previousTime = ros::Time::now().toSec();
+        ROS_INFO_STREAM("****************THIK THIK THIK THIK*********");
+        // double previousTime = ros::Time::now().toSec();
         largeChange = false;
     }
 
