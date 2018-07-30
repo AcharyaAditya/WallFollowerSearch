@@ -8,7 +8,7 @@
 #define P 2
 #define D 1
 #define ANGLE_COEF 0.3
-#define DIRECTION 1
+#define DIRECTION -1
 
 #define PUBLISHER_TOPIC "/cmd_vel"
 

@@ -42,6 +42,7 @@ public:
   static double dist180;
   static bool largeChange;
   static double previousTime;
+  static bool turnComp;
 
   double wallDistance; // r_wall             desired distance to wall
   double diffE;     // e_tn - e_tn-1      Derative element for PD controller.
