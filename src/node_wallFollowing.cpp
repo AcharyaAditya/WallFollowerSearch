@@ -8,6 +8,9 @@ double NodeWallFollowing::dist180 = 0;
 bool NodeWallFollowing::largeChange = false;
 double NodeWallFollowing::previousTime = 0;
 bool NodeWallFollowing::turnComp = true;
+int NodeWallFollowing::minIndex = 0;
+int NodeWallFollowing::maxIndex = 540;
+bool NodeWallFollowing::rightClear = true;
 
 NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
@@ -28,64 +31,25 @@ NodeWallFollowing::~NodeWallFollowing() {}
 //Publisher
 void NodeWallFollowing::publishMessage()
 {
-    // double previousTime = ros::Time::now().toSec();
-    // double currentTime = 0;
-
     //preparing message
     geometry_msgs::Twist msg;
-
     //for tests
     std_msgs::Float32 distancemsg;
     std_msgs::Float32 errormsg;
 
     //added for takeoff in simulation
-    // if (sonarHeight < 0.5)
-    // {
-    //     msg.linear.z = 1;
-    // }
-
-    // if (largeChange)
-    // {
-    //     while (currentTime < (previousTime + 2.0))
-    //     {
-    //         if (sonarHeight < 0.5)
-    //         {
-    //             msg.linear.z = 1;
-    //         }
-    //         ROS_INFO_STREAM("---------------------4 sec sidha janchu---------------------------");
-    //         msg.linear.x = 0.4;
-
-    //         pubMessage.publish(msg);
-    //         currentTime = ros::Time::now().toSec();
-    //     }
-    //     while (currentTime < (previousTime + 4.0))
-    //     {
-    //         if (sonarHeight < 0.5)
-    //         {
-    //             msg.linear.z = 1;
-    //         }
-    //         ROS_INFO_STREAM("---------------------gumdai chu aba---------------------------");
-    //         msg.angular.z = 1; //+ve for anti clockwise
-    //         pubMessage.publish(msg);
-    //         currentTime = ros::Time::now().toSec();
-    //     }
-    // }
-    // else
-    // {
     if (sonarHeight < 0.5)
     {
         msg.linear.z = 1;
     }
+
     msg.angular.z = -1 * direction * (P * myErr + D * diffE) + angleCoef * (((PI * direction) / 2) - angleMin);
-    // msg.linear.x = maxSpeed;
 
     //until 90 degree turn is complete if statement for that
-
     //otherwise follow the normal pattern
-
     if (turnComp)
     {
-        if (distFront < wallDistance)
+        if ((distFront < (wallDistance )) || !rightClear )
         {
             msg.linear.x = 0;
             turnComp = false;
@@ -96,6 +60,8 @@ void NodeWallFollowing::publishMessage()
         }
         else if (fabs(angleMin) > 1.75)
         {
+            int minIndex = 180;
+            int maxIndex = 540;
             msg.linear.x = 0.4 * maxSpeed;
         }
         else
@@ -105,17 +71,18 @@ void NodeWallFollowing::publishMessage()
     }
     else
     {
-        ROS_INFO_STREAM("Not Complete Not Complete");  /// HAS NOT BEEN TESTED wall dist 5 rakhera, should work in theory
+        ROS_INFO_STREAM("Not Complete Not Complete"); /// HAS NOT BEEN TESTED wall dist 5 rakhera, should work in theory
         msg.linear.x = 0;
-        if (distFront > (4 * wallDistance))
+        if (distFront > (6 * wallDistance))
         {
             turnComp = true;
         }
     }
-    pubMessage.publish(msg);
-    // }
 
     //publish message
+    pubMessage.publish(msg);
+
+    //define and publish messages to plot
     errormsg.data = dist180;
     distancemsg.data = angleMin * 180 / PI;
     meroDistancePub.publish(distancemsg);
@@ -126,36 +93,35 @@ void NodeWallFollowing::publishMessage()
 void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &msg)
 {
 
-    if (largeChange)
-    {
-        wallDistance = 3;
-    }
-    else
-    {
-        wallDistance = 1;
-    }
     int size = msg->ranges.size();
+    int closestIndex = -1;
+    double minVal = 999;
+    float distMin = 0;
 
     //variables with index of highest and lowest values in array
     // int minIndex = (size * (direction + 1) / 4);
     // int maxIndex = size * (direction + 3) / 4;
-    int minIndex = 0;
-    int maxIndex = 540;
     if (!turnComp)
     {
-        int minIndex = 180;
-        int maxIndex = 540;
+        // wallDistance = 1/2;
+        minIndex = 360;
+        maxIndex = 540;
+    }
+    else
+    {
+        // wallDistance = 1;
+        minIndex = 0;
+        maxIndex = 540;
     }
 
-    int closestIndex = -1;
-    double minVal = 999;
-    overDistCount = 0;
+    if(msg->ranges[720] < wallDistance){
+        rightClear = false;
+    }else{
+        rightClear = true;
+    }
+
     for (int i = minIndex; i < maxIndex; i++)
     {
-        if (msg->ranges[i] > wallDistance + 2) /////YESMA MILAUNA PARCHA SURE change kasari milaune?
-        {
-            overDistCount++;
-        }
         if ((msg->ranges[i] <= minVal) && (msg->ranges[i] >= msg->range_min) && (msg->ranges[i] <= msg->range_max))
         {
             minVal = msg->ranges[i];
@@ -163,27 +129,13 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
         }
     }
 
-    if (overDistCount > 5390)
-    {
-        largeChange = true;
-        ROS_INFO_STREAM("---------------------Left ma bhwang cha---------------------------");
-        // double previousTime = ros::Time::now().toSec();
-    }
-    else
-    {
-        ROS_INFO_STREAM("****************THIK THIK THIK THIK*********");
-        // double previousTime = ros::Time::now().toSec();
-        largeChange = false;
-    }
-
     // ROS_INFO_STREAM("Value800 ---"<<msg->ranges[800]);
+    ROS_INFO_STREAM("****************THIK THIK THIK THIK*********");
     ROS_INFO_STREAM("Index ---" << closestIndex);
     ROS_INFO_STREAM("Value ---" << msg->ranges[closestIndex]);
-    // ROS_INFO_STREAM("----------------------------------");
 
     //calculation of angles from indexes and storing data to class variables
     angleMin = (closestIndex - (size / 2)) * msg->angle_increment;
-    float distMin = 0;
     distMin = msg->ranges[closestIndex];
     distFront = msg->ranges[(size / 2)];
 
