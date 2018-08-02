@@ -11,6 +11,8 @@ bool NodeWallFollowing::turnComp = true;
 int NodeWallFollowing::minIndex = 0;
 int NodeWallFollowing::maxIndex = 540;
 bool NodeWallFollowing::rightClear = true;
+double NodeWallFollowing::rightDistance = 0;
+// bool NodeWallFollowing::rightRecorded = false;
 
 NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
@@ -49,7 +51,8 @@ void NodeWallFollowing::publishMessage()
     //otherwise follow the normal pattern
     if (turnComp)
     {
-        if ((distFront < (wallDistance )) || !rightClear )
+
+        if ((distFront < (wallDistance)) || !rightClear)
         {
             msg.linear.x = 0;
             turnComp = false;
@@ -73,7 +76,7 @@ void NodeWallFollowing::publishMessage()
     {
         ROS_INFO_STREAM("Not Complete Not Complete"); /// HAS NOT BEEN TESTED wall dist 5 rakhera, should work in theory
         msg.linear.x = 0;
-        if (distFront > (6 * wallDistance))
+        if (distFront > (0.80 * rightDistance)) //90% of max distance to the right instead of this hard coded value Change this potentially??
         {
             turnComp = true;
         }
@@ -97,6 +100,7 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     int closestIndex = -1;
     double minVal = 999;
     float distMin = 0;
+    double maxValueRight = 0;
 
     //variables with index of highest and lowest values in array
     // int minIndex = (size * (direction + 1) / 4);
@@ -104,19 +108,39 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     if (!turnComp)
     {
         // wallDistance = 1/2;
-        minIndex = 360;
+        minIndex = 450;
         maxIndex = 540;
     }
     else
     {
+        //////////////////////////////////////////////////////////////
+        for (int j = 540; j < 1080; j++)
+        {
+            if ((msg->ranges[j] >= maxValueRight) && (msg->ranges[j] >= msg->range_min) && (msg->ranges[j] <= msg->range_max))
+            {
+                maxValueRight = msg->ranges[j];
+            }
+        }
+        if (msg->ranges[900] > wallDistance)
+        {
+            rightDistance = msg->ranges[900];
+        }
+        else
+        {
+            rightDistance = maxValueRight;
+        }
+        //////////////////////////////////////////////////////////////
         // wallDistance = 1;
         minIndex = 0;
         maxIndex = 540;
     }
 
-    if(msg->ranges[720] < wallDistance){
+    if (msg->ranges[720] < wallDistance)
+    {
         rightClear = false;
-    }else{
+    }
+    else
+    {
         rightClear = true;
     }
 

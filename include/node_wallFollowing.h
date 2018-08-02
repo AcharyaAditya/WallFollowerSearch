@@ -46,6 +46,8 @@ public:
   static int minIndex;
   static int maxIndex;
   static bool rightClear;
+  static double rightDistance;
+  // static bool rightRecorded;
 
   double wallDistance; // r_wall             desired distance to wall
   double diffE;     // e_tn - e_tn-1      Derative element for PD controller.
