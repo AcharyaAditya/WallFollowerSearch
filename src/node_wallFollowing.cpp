@@ -5,14 +5,11 @@
 
 double NodeWallFollowing::myErr = 0;
 double NodeWallFollowing::dist180 = 0;
-bool NodeWallFollowing::largeChange = false;
-double NodeWallFollowing::previousTime = 0;
 bool NodeWallFollowing::turnComp = true;
 int NodeWallFollowing::minIndex = 0;
 int NodeWallFollowing::maxIndex = 540;
 bool NodeWallFollowing::rightClear = true;
 double NodeWallFollowing::rightDistance = 0;
-// bool NodeWallFollowing::rightRecorded = false;
 
 NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
@@ -47,8 +44,8 @@ void NodeWallFollowing::publishMessage()
 
     msg.angular.z = -1 * direction * (P * myErr + D * diffE) + angleCoef * (((PI * direction) / 2) - angleMin);
 
-    //until 90 degree turn is complete if statement for that
-    //otherwise follow the normal pattern
+    /* until 90 degree turn is complete if statement f
+    or that otherwise follow the normal pattern */
     if (turnComp)
     {
 
@@ -74,9 +71,9 @@ void NodeWallFollowing::publishMessage()
     }
     else
     {
-        ROS_INFO_STREAM("Not Complete Not Complete"); /// HAS NOT BEEN TESTED wall dist 5 rakhera, should work in theory
+        ROS_INFO_STREAM("Not Complete Not Complete");
         msg.linear.x = 0;
-        if (distFront > (0.80 * rightDistance)) //90% of max distance to the right instead of this hard coded value Change this potentially??
+        if (distFront > (0.80 * rightDistance)) //80% of max distance to the right instead of this hard coded value Change this potentially??
         {
             turnComp = true;
         }
@@ -107,13 +104,13 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     // int maxIndex = size * (direction + 3) / 4;
     if (!turnComp)
     {
-        // wallDistance = 1/2;
+        //only look at the forward 22.5 degrees until the turn is completed
         minIndex = 450;
         maxIndex = 540;
     }
     else
     {
-        //////////////////////////////////////////////////////////////
+        ////////////////////////This loops gives the max range in the right//////////////////////////////////////
         for (int j = 540; j < 1080; j++)
         {
             if ((msg->ranges[j] >= maxValueRight) && (msg->ranges[j] >= msg->range_min) && (msg->ranges[j] <= msg->range_max))
@@ -123,18 +120,43 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
         }
         if (msg->ranges[900] > wallDistance)
         {
-            rightDistance = msg->ranges[900];
+            /*
+            This check is for bigger rooms where the turn
+            completion check needs to be reduced to an acceptable limit
+            */
+            if (msg->ranges[900] < 5)
+            {
+                /*if the room is small enough then we just take 
+                the value ar the 90 degree mark on the right 
+                as the reference value
+                */
+                rightDistance = msg->ranges[900];
+            }
+            else
+            {
+                rightDistance = 5;
+            }
         }
         else
         {
+            /*if the enclosed area is smaller than the assigned wall 
+            distance value it is required to turn until the opening is 
+            seen hence we look for the highest value area on the right
+            */
             rightDistance = maxValueRight;
         }
         //////////////////////////////////////////////////////////////
-        // wallDistance = 1;
+
+        //look at the entire left half after the turn has been completed
         minIndex = 0;
         maxIndex = 540;
     }
 
+    /*
+    This check is to determine if there is enough room to turn, 
+    and hence the values on the right needs to be checked
+    A right turn which is more than 90 degrees will use this condition 
+    */
     if (msg->ranges[720] < wallDistance)
     {
         rightClear = false;
@@ -144,6 +166,9 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
         rightClear = true;
     }
 
+    /*This loop gives the distance to to closest obstacle and
+    its index in the range array so that the angle can be extracted
+    */
     for (int i = minIndex; i < maxIndex; i++)
     {
         if ((msg->ranges[i] <= minVal) && (msg->ranges[i] >= msg->range_min) && (msg->ranges[i] <= msg->range_max))
