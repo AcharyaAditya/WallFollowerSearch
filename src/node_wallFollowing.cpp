@@ -5,11 +5,17 @@
 
 double NodeWallFollowing::myErr = 0;
 double NodeWallFollowing::dist180 = 0;
-bool NodeWallFollowing::turnComp = true;
 int NodeWallFollowing::minIndex = 0;
 int NodeWallFollowing::maxIndex = 540;
+int NodeWallFollowing::overDistCount = 0;
+
 bool NodeWallFollowing::rightClear = true;
+bool NodeWallFollowing::rightTurnRequired = false;
 double NodeWallFollowing::rightDistance = 0;
+double NodeWallFollowing::leftDistance = 0;
+
+bool NodeWallFollowing::leftTurnRequired = false;
+bool NodeWallFollowing::stuck = false;
 
 NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
@@ -42,17 +48,43 @@ void NodeWallFollowing::publishMessage()
         msg.linear.z = 1;
     }
 
-    msg.angular.z = -1 * direction * (P * myErr + D * diffE) + angleCoef * (((PI * direction) / 2) - angleMin);
+    msg.angular.z = -1 * direction * (P * myErr + D * diffE) + angleCoef * (((PI * direction) / 2) - angleMin); //+ve for anti clockwise
 
-    /* until 90 degree turn is complete if statement f
-    or that otherwise follow the normal pattern */
-    if (turnComp)
+    /* until 90 degree turn is complete if statement 
+    for that otherwise follow the normal pattern */
+    if (rightTurnRequired)
     {
-
+        ROS_INFO_STREAM("****************RIGHT TURN REQUIRED*********");
+        msg.linear.x = 0;
+        if (distFront > (0.80 * rightDistance)) //80% of max distance to the right instead of this hard coded value Change this potentially??
+        {
+            rightTurnRequired = false;
+        }
+    }
+    else if (leftTurnRequired)
+    {
+        //left turn complete check and set leftTurnRequired to false
+        ROS_INFO_STREAM("****************LEFT TURN REQUIRED*********");
+        msg.linear.x = maxSpeed;
+        if (leftDistance < (wallDistance + 2))
+        {
+            leftTurnRequired = false;
+        }
+    }
+    else
+    {
         if ((distFront < (wallDistance)) || !rightClear)
         {
+            // ROS_INFO_STREAM("****************RIGHT TURN REQUIRED*********");
             msg.linear.x = 0;
-            turnComp = false;
+            rightTurnRequired = true;
+            leftTurnRequired = false;
+        }
+        else if (overDistCount > (530))
+        {
+            // ROS_INFO_STREAM("****************LEFT TURN REQUIRED*********");
+            leftTurnRequired = true;
+            rightTurnRequired = false;
         }
         else if (distFront < wallDistance * 2)
         {
@@ -60,22 +92,13 @@ void NodeWallFollowing::publishMessage()
         }
         else if (fabs(angleMin) > 1.75)
         {
-            int minIndex = 180;
-            int maxIndex = 540;
+            // int minIndex = 180;
+            // int maxIndex = 540;
             msg.linear.x = 0.4 * maxSpeed;
         }
         else
         {
             msg.linear.x = maxSpeed;
-        }
-    }
-    else
-    {
-        ROS_INFO_STREAM("Not Complete Not Complete");
-        msg.linear.x = 0;
-        if (distFront > (0.80 * rightDistance)) //80% of max distance to the right instead of this hard coded value Change this potentially??
-        {
-            turnComp = true;
         }
     }
 
@@ -98,15 +121,23 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     double minVal = 999;
     float distMin = 0;
     double maxValueRight = 0;
+    overDistCount = 0;
 
     //variables with index of highest and lowest values in array
     // int minIndex = (size * (direction + 1) / 4);
     // int maxIndex = size * (direction + 3) / 4;
-    if (!turnComp)
+    if (rightTurnRequired)
     {
         //only look at the forward 22.5 degrees until the turn is completed
         minIndex = 450;
         maxIndex = 540;
+    }
+    else if (leftTurnRequired)
+    {
+        //only look at the backward 22.5 degrees until the turn is completed
+        minIndex = 0;
+        maxIndex = 90;
+        leftDistance = msg->ranges[180];
     }
     else
     {
@@ -177,6 +208,27 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
             closestIndex = i;
         }
     }
+
+    for (int i = 0; i < 540; i++)
+    {
+        if (msg->ranges[i] > (0.9))
+        {
+            overDistCount++; //means that there is a large change and there is a gap or a dent on the left
+        }
+    }
+    ROS_INFO_STREAM("Over Dist count ======================" << overDistCount);
+    //turn until right front is visible
+    /*
+    Check if it is stuck
+    */
+
+    /*
+    Fix Left turn
+    */
+
+    /*
+    fix slight right turn
+    */
 
     // ROS_INFO_STREAM("Value800 ---"<<msg->ranges[800]);
     ROS_INFO_STREAM("****************THIK THIK THIK THIK*********");

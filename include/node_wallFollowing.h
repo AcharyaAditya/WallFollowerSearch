@@ -37,25 +37,31 @@ public:
   void poseCallback(const geometry_msgs::PoseStamped::ConstPtr &poseMsg);
 
   //variables
-  int overDistCount;
+  static int overDistCount;
   static double myErr;
   static double dist180;
-  static bool turnComp;
   static int minIndex;
   static int maxIndex;
+
+  static bool rightTurnRequired;
   static bool rightClear;
   static double rightDistance;
 
+  static bool leftTurnRequired;
+  static double leftDistance;
+  static bool stuck;
+  // static double leftDistance;
+
   double wallDistance; // r_wall             desired distance to wall
-  double diffE;     // e_tn - e_tn-1      Derative element for PD controller.
-  double intE;      // Integral component
-  double maxSpeed;  // Maximum speed of the robot.
-  double P;         // k_P                 constant for PD controller.
-  double D;         // k_D                 constant for the PD controller
-  double angleCoef; // k_P2                coefficient for P controller
-  int direction;    // d                   1 for wall on the right and -1 for wall on the left
-  float angleMin;   // chi                 Angle, measured at the shortest distance
-  float distFront;  // Distance measured at the front of the robot
+  double diffE;        // e_tn - e_tn-1      Derative element for PD controller.
+  double intE;         // Integral component
+  double maxSpeed;     // Maximum speed of the robot.
+  double P;            // k_P                 constant for PD controller.
+  double D;            // k_D                 constant for the PD controller
+  double angleCoef;    // k_P2                coefficient for P controller
+  int direction;       // d                   1 for wall on the right and -1 for wall on the left
+  float angleMin;      // chi                 Angle, measured at the shortest distance
+  float distFront;     // Distance measured at the front of the robot
   ros::Publisher pubMessage;
   ros::Publisher meroDistancePub;
   ros::Publisher calculatedError;
