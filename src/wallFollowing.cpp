@@ -4,7 +4,7 @@
 #define SUBSCRIBER_BUFFER_SIZE 1000
 #define PUBLISHER_BUFFER_SIZE 1000
 #define WALL_DISTANCE 0.7
-#define MAX_SPEED 0.3
+#define MAX_SPEED 0.2
 #define P 2
 #define D 1
 #define ANGLE_COEF 0.3

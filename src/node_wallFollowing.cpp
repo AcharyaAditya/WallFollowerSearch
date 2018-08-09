@@ -15,7 +15,8 @@ double NodeWallFollowing::rightDistance = 0;
 double NodeWallFollowing::leftDistance = 0;
 
 bool NodeWallFollowing::leftTurnRequired = false;
-bool NodeWallFollowing::stuck = false;
+
+float NodeWallFollowing::distFront = 0;
 
 NodeWallFollowing::NodeWallFollowing(ros::Publisher meroDistance, ros::Publisher calcErr, ros::Publisher pub, double wallDist, double maxSp, int dir, double pr, double di, double an)
 {
@@ -55,7 +56,7 @@ void NodeWallFollowing::publishMessage()
     if (rightTurnRequired)
     {
         ROS_INFO_STREAM("****************RIGHT TURN REQUIRED*********");
-        msg.linear.x = 0;
+        msg.linear.x = 0; //when turning right, linear velocit is zero. We get to this situation only if it clears the first if condition in the else part of this
         if (distFront > (0.80 * rightDistance)) //80% of max distance to the right instead of this hard coded value Change this potentially??
         {
             rightTurnRequired = false;
@@ -65,8 +66,8 @@ void NodeWallFollowing::publishMessage()
     {
         //left turn complete check and set leftTurnRequired to false
         ROS_INFO_STREAM("****************LEFT TURN REQUIRED*********");
-        msg.linear.x = maxSpeed;
-        if (leftDistance < (wallDistance + 2))
+        msg.linear.x = maxSpeed * 0.5;
+        if (overDistCount < 250)
         {
             leftTurnRequired = false;
         }
@@ -75,30 +76,26 @@ void NodeWallFollowing::publishMessage()
     {
         if ((distFront < (wallDistance)) || !rightClear)
         {
-            // ROS_INFO_STREAM("****************RIGHT TURN REQUIRED*********");
             msg.linear.x = 0;
-            rightTurnRequired = true;
-            leftTurnRequired = false;
+            rightTurnRequired = true; //this is the only condition that sets right turn required as true
+            leftTurnRequired = false; // no left turns when we want right, aslo right turn overrides everything
         }
-        else if (overDistCount > (530))
+        else if (overDistCount > 250)
         {
-            // ROS_INFO_STREAM("****************LEFT TURN REQUIRED*********");
-            leftTurnRequired = true;
-            rightTurnRequired = false;
+            leftTurnRequired = true; //this is the only condition that sets left turn required as true
+            rightTurnRequired = false; // no right turns when we want left, aslo we get here only of right side is clear
         }
         else if (distFront < wallDistance * 2)
         {
-            msg.linear.x = 0.5 * maxSpeed;
+            msg.linear.x = 0.5 * maxSpeed; //reducing speed so that turn can be made smoother
         }
-        else if (fabs(angleMin) > 1.75)
+        else if (fabs(angleMin) < (-1.75))
         {
-            // int minIndex = 180;
-            // int maxIndex = 540;
-            msg.linear.x = 0.4 * maxSpeed;
+            msg.linear.x = 0.4 * maxSpeed; // reducing spped to keep tracking things behind me on the left side
         }
         else
         {
-            msg.linear.x = maxSpeed;
+            msg.linear.x = maxSpeed; // top speed when everything is clear
         }
     }
 
@@ -136,12 +133,12 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
     {
         //only look at the backward 22.5 degrees until the turn is completed
         minIndex = 0;
-        maxIndex = 90;
+        maxIndex = 540;
         leftDistance = msg->ranges[180];
     }
     else
     {
-        ////////////////////////This loops gives the max range in the right//////////////////////////////////////
+        //This loops gives the max range in the right
         for (int j = 540; j < 1080; j++)
         {
             if ((msg->ranges[j] >= maxValueRight) && (msg->ranges[j] >= msg->range_min) && (msg->ranges[j] <= msg->range_max))
@@ -149,6 +146,8 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
                 maxValueRight = msg->ranges[j];
             }
         }
+
+        //Setting up right distance to check for turn completions
         if (msg->ranges[900] > wallDistance)
         {
             /*
@@ -209,11 +208,12 @@ void NodeWallFollowing::messageCallback(const sensor_msgs::LaserScan::ConstPtr &
         }
     }
 
-    for (int i = 0; i < 540; i++)
+    // to determine that there is a large change and there is a gap or a dent on the left, trigger for left turns
+    for (int i = 180; i < 540; i++)
     {
         if (msg->ranges[i] > (0.9))
         {
-            overDistCount++; //means that there is a large change and there is a gap or a dent on the left
+            overDistCount++;
         }
     }
     ROS_INFO_STREAM("Over Dist count ======================" << overDistCount);

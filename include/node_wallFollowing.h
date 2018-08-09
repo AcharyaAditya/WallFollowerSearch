@@ -49,7 +49,8 @@ public:
 
   static bool leftTurnRequired;
   static double leftDistance;
-  static bool stuck;
+
+  static float distFront;     // Distance measured at the front of the robot
   // static double leftDistance;
 
   double wallDistance; // r_wall             desired distance to wall
@@ -61,7 +62,7 @@ public:
   double angleCoef;    // k_P2                coefficient for P controller
   int direction;       // d                   1 for wall on the right and -1 for wall on the left
   float angleMin;      // chi                 Angle, measured at the shortest distance
-  float distFront;     // Distance measured at the front of the robot
+  
   ros::Publisher pubMessage;
   ros::Publisher meroDistancePub;
   ros::Publisher calculatedError;
